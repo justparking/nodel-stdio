@@ -82,7 +82,7 @@ def _emit_reflection():
     print json.dumps(events)
     print json.dumps(actions)
 
-def start_bridge():
+def start_nodel_channel():
     '''Starts the bridge and blocks (whilest processing stdin)'''
     # dump metadata first
     _emit_reflection()
@@ -146,6 +146,12 @@ def _process_action_message(action, actionMessage):
         pass
 
 # static convenience functions
+
+def emit_event(event, arg=None):
+    if arg:
+        print json.dumps({'event': event, 'arg': arg})
+    else:
+        print json.dumps({'event': event})
 
 def reduceName(name):
     '''Reduces a name for comparison purposes'''

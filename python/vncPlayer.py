@@ -1,38 +1,39 @@
 import os
 import sys
 from vlc import *
+from nodel_stdio import *
 
 VLC_ARGS = []
 
 class Main:
-    def end_callback(self, event):
-        print('End of media stream (event %s)' % event.type)
-        # sys.exit(0)
+    endReached = create_nodel_event('End Reached')
+    def endReached_callback(self, event):
+        self.endReached.emit()
 
-    echo_position = False
+    position = create_nodel_event('Position')
     def pos_callback(self, event, player):
-        if self.echo_position:
-            sys.stdout.write('\r%s to %.2f%% (%.2f%%)' % (event.type,
-                                                          event.u.new_position * 100,
-                                                          player.get_position() * 100))
-            sys.stdout.flush()
+        self.position.emit(event.u.new_position * 100)
 
-    def print_version(self):
+    version = create_nodel_event('Version')
+    def version(self):
         """Print version of this vlc.py and of the libvlc"""
+        arg = {}
         try:
-            print('Build date: %s (%#x)' % (build_date, hex_version()))
-            print('LibVLC version: %s (%#x)' % (bytes_to_str(libvlc_get_version()), libvlc_hex_version()))
-            print('LibVLC compiler: %s' % bytes_to_str(libvlc_get_compiler()))
+            arg['Build date'] = '%s (%#x)' % (build_date, hex_version())
+            arg['LibVLC version'] = '%s (%#x)' % (bytes_to_str(libvlc_get_version()), libvlc_hex_version())
+            arg['LibVLC compiler'] = '%s' % bytes_to_str(libvlc_get_compiler())
             if plugin_path:
-                print('Plugin path: %s' % plugin_path)
+                arg['Plugin path'] = '%s' % plugin_path
+
+            emit_event('version', arg)
         except:
             print('Error: %s' % sys.exc_info()[1])
 
     def __init__(self):
-        movie = os.path.expanduser(sys.argv.pop())
-        if not os.access(movie, os.R_OK):
-            print('Error: %s file not readable' % movie)
-            sys.exit(1)
+        # movie = os.path.expanduser(sys.argv.pop())
+        # if not os.access(movie, os.R_OK):
+        #    print('Error: %s file not readable' % movie)
+        #    sys.exit(1)
 
         # Need --sub-source=marq in order to use marquee below
         self.instance = Instance(["--sub-source=marq"] + VLC_ARGS)
@@ -65,35 +66,43 @@ class Main:
         # any number of positional and/or keyword arguments to be passed
         # to the callback (in addition to the first one, an Event instance).
         self.event_manager = self.player.event_manager()
-        self.event_manager.event_attach(EventType.MediaPlayerEndReached, self.end_callback)
+        self.event_manager.event_attach(EventType.MediaPlayerEndReached, self.endReached_callback)
         self.event_manager.event_attach(EventType.MediaPlayerPositionChanged, self.pos_callback, self.player)
         
     def set_media(self, filePath):
         media = self.instance.media_new(filePath)
         self.player.set_media(media)
 
+    @nodel_action()
     def play(self):
         self.player.play()
+
+    @nodel_action()
+    def stop(self):
+        self.player.stop()
 
     def mspf(self):
         """Milliseconds per frame"""
         return int(1000 // (self.player.get_fps() or 25))
 
-    def print_info(self):
+    info = create_nodel_event('Info')
+    def info(self):
         """Print information about the media"""
         try:
-            print_version()
+            self.version()
             media = player.get_media()
-            print('State: %s' % player.get_state())
-            print('Media: %s' % bytes_to_str(media.get_mrl()))
-            print('Track: %s/%s' % (player.video_get_track(), player.video_get_track_count()))
-            print('Current time: %s/%s' % (player.get_time(), media.get_duration()))
-            print('Position: %s' % player.get_position())
-            print('FPS: %s (%d ms)' % (player.get_fps(), mspf()))
-            print('Rate: %s' % player.get_rate())
-            print('Video size: %s' % str(player.video_get_size(0)))  # num=0
-            print('Scale: %s' % player.video_get_scale())
-            print('Aspect ratio: %s' % player.video_get_aspect_ratio())
+
+            arg = {'State': player.get_state(), 
+                   'Media': bytes_to_str(media.get_mrl()), 
+                   'Track': '%s/%s' % (player.video_get_track(), player.video_get_track_count()),
+                   'Current time': '%s/%s' % (player.get_time(), media.get_duration()),
+                   'Position': player.get_position(),
+                   'FPS': '%s (%d ms)' % (player.get_fps(), mspf()),
+                   'Rate': '%s' % player.get_rate(),
+                   'Video size': '%s' % str(player.video_get_size(0)),  # num=0
+                   'Scale': '%s' % player.video_get_scale(),
+                   'Aspect ratio': '%s' % player.video_get_aspect_ratio()}
+            info.emit(arg)
            #print('Window:' % player.get_hwnd()
         except Exception:
             print('Error: %s' % sys.exc_info()[1])
@@ -131,3 +140,7 @@ class Main:
         self.echo_position = not self.echo_position
 
 main = Main()
+
+start_nodel_channel()
+
+
