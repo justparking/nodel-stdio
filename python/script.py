@@ -1,11 +1,21 @@
 '''Simple single instance Nodel channel using stdio.'''
 
-# (NOTE, the '-u' flag (unbuffered) is important)
-command = ['C:\\Python27\\python.exe', '-u', 'myVLC.py']
+param_command = Parameter({'title': 'Command line args', 
+                           'desc': 'The list of command line arguments as JSON', 
+                           'schema': { 'type': 'array', 'items': { 
+                               'type': 'object', 
+                                       'properties': { 
+                                           'arg': {'type': 'string'} 
+                                       }
+                               }
+                          }})
 
+# example command:
+# command = ['C:\\Python27\\python.exe', '-u', 'simple_vlc_player.py']
+# NOTE: the '-u' flag (unbuffered) is important for interactive stdin/out
 
 def handle_stdout(line):
-  print '(got line %s)' % line
+  print '# got raw line "%s"' % line
   
   json_message = line.strip()
   if json_message.startswith('#'):
@@ -49,7 +59,7 @@ def process_actions_reflection(actions, metadata):
 def process_action_reflection(name, metadata):
   def handler(arg):
     message_json = json_encode({'action': name, 'arg': arg})
-    print 'sending %s' % message_json
+    print '# sending %s' % message_json
     process.sendNow(message_json)
     
   Action(name, handler, metadata)
@@ -66,17 +76,21 @@ def handle_event(name, arg):
   event = lookup_local_event(name)
   if event:
     event.emit(arg)
-
     
     
-process = Process(command,
+process = Process([],
                   started=lambda: console.info('Process started'),
                   stdout=handle_stdout,
                   stdin=None,
-                  stderr=lambda data: console.info('got stderr "%s"' % arg), # stderr handler
+                  stderr=lambda data: console.info('got stderr "%s"' % data), # stderr handler
                   stopped=lambda exitCode: console.info('Process stopped (exit code %s)' % exitCode), # when the process is stops / stopped
                   timeout=lambda: console.warn('Request timeout'))  
 
 def main(arg = None):
   print 'Nodel script started.'
+  
+  reducedCommand = [x['arg'] for x in param_command]
+  print 'Using command %s' % reducedCommand
+  
+  process.setCommand(reducedCommand)
 

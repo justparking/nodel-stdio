@@ -10,7 +10,7 @@ class Main:
     def endReached_callback(self, event):
         self.endReached.emit()
 
-    position = create_nodel_event('Position')
+    position = create_nodel_event('Position', {'schema': {'type': 'number'}})
     def pos_callback(self, event, player):
         self.position.emit(event.u.new_position * 100)
 
@@ -69,7 +69,9 @@ class Main:
         self.event_manager.event_attach(EventType.MediaPlayerEndReached, self.endReached_callback)
         self.event_manager.event_attach(EventType.MediaPlayerPositionChanged, self.pos_callback, self.player)
         
+    @nodel_action({'schema': {'type': 'string'}})
     def set_media(self, filePath):
+        print '# setting media "%s"' % filePath
         media = self.instance.media_new(filePath)
         self.player.set_media(media)
 
@@ -140,7 +142,9 @@ class Main:
         self.echo_position = not self.echo_position
 
 main = Main()
+register_instance_node(main)
 
-start_nodel_channel()
+if __name__ == '__main__':
+    start_nodel_channel()
 
 

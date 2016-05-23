@@ -5,6 +5,7 @@ import fileinput
 # lookup tables
 _actionInfos_byReducedName = {}
 _eventInfos_byReducedName = {}
+_node_instance = None
 
 class _NodelPointInfo:
     '''(works for Actions and Events)'''
@@ -14,8 +15,8 @@ class _NodelPointInfo:
     metadata = None
 
     def __init__(self, name=None, func=None, metadata=None):
-        # use the function name if it's provided
-        self.name = func.func_name if func else name
+        # use the function name if the name's not provided
+        self.name = name if name else func.func_name
         self.reduced = reduceName(self.name)
         self.func = func
         self.metadata = metadata
@@ -26,12 +27,14 @@ class _NodelPointInfo:
 # (function decorator)
 def nodel_action(metadata={}):
     '''Registers a Nodel action.'''
-    def action_decorator(func):
-        def func_wrapper(arg):
-            print '(in func_wrapper. arg=%s)' % arg
-            return func(arg)
 
-        info = _NodelPointInfo(func=func, metadata=metadata)
+    def action_decorator(func):
+
+        def func_wrapper(*args):
+            # 'self' (instance) will be filled in here
+            return func(*args)
+
+        info = _NodelPointInfo(name=func.func_name, func=func_wrapper, metadata=metadata)
         _actionInfos_byReducedName[info.reduced] = info
         
         return func_wrapper
@@ -82,6 +85,10 @@ def _emit_reflection():
     print json.dumps(events)
     print json.dumps(actions)
 
+def register_instance_node(instance):
+    global _node_instance
+    _node_instance = instance
+
 def start_nodel_channel():
     '''Starts the bridge and blocks (whilest processing stdin)'''
     # dump metadata first
@@ -98,7 +105,7 @@ def _process_stdin():
     while True:
         line = sys.stdin.readline()
         
-        print '# got line "%s"' % line
+        print '# got raw line "%s"' % line
         trimmed = line.strip()
         
         # print '# ([%s] arrived)' % trimmed
@@ -113,8 +120,12 @@ def _process_stdin():
             # only accept JSON objects
             continue
 
-        message = json.loads(trimmed)
-        print '# got message %s' % message
+        try:
+            message = json.loads(trimmed)
+            print '# got message %s' % message
+        except Exception as exc:
+            print '# error handling message - %s' % exc
+            continue
         
         _process_message(message)
 
@@ -140,10 +151,14 @@ def _process_action_message(action, actionMessage):
         return
 
     try:
-        actionInfo.func(actionMessage.get('arg'))
-    except:
-        # ignore exception
-        pass
+        argPart = actionMessage.get('arg') 
+        if argPart != None:
+            actionInfo.func.__call__(_node_instance, argPart)
+        else:
+            actionInfo.func.__call__(_node_instance)
+        
+    except Exception as exc:
+        print '# error handling action message - %s' % exc
 
 # static convenience functions
 
